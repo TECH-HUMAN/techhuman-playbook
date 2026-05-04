@@ -1,0 +1,78 @@
+name: Deploy Playbook to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Playbook
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout canonical content
+        uses: actions/checkout@v4
+        with:
+          repository: TECH-HUMAN/th-new-business-model
+          ref: main
+          ssh-key: ${{ secrets.TH_NEW_BUSINESS_MODEL_DEPLOY_KEY }}
+          path: canonical
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: canonical/07-playbook-site/package-lock.json
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Install dependencies
+        working-directory: canonical/07-playbook-site
+        run: npm ci
+
+      - name: Build Playbook
+        working-directory: canonical/07-playbook-site
+        run: npm run validate
+        env:
+          NEXT_PUBLIC_DOCS_BASE_URL: https://docs.techhuman.com.br
+          NEXT_TELEMETRY_DISABLED: "1"
+
+      - name: Add custom domain marker
+        run: echo "playbook.techhuman.com.br" > canonical/07-playbook-site/out/CNAME
+
+      - name: Verify artifact
+        run: |
+          test -f canonical/07-playbook-site/out/index.html
+          test -f canonical/07-playbook-site/out/audiencias/index.html
+          grep -q "Playbook Tech Human" canonical/07-playbook-site/out/index.html
+          grep -q 'href="/_next/' canonical/07-playbook-site/out/index.html
+          grep -q "https://docs.techhuman.com.br/ecossistema/" canonical/07-playbook-site/out/index.html
+          ! grep -q "/techhuman-website/playbook/" canonical/07-playbook-site/out/index.html
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: canonical/07-playbook-site/out
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
