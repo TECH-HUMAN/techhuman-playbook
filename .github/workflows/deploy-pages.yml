@@ -43,6 +43,10 @@ jobs:
         working-directory: canonical/07-playbook-site
         run: npm ci
 
+      - name: Audit complete dependency tree
+        working-directory: canonical/07-playbook-site
+        run: npm audit --audit-level=moderate --registry=https://registry.npmjs.org
+
       - name: Build Playbook
         working-directory: canonical/07-playbook-site
         run: npm run validate
